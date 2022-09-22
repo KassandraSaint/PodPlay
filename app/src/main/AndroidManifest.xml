@@ -15,7 +15,8 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.PodPlay.NoActionBar"
-        tools:targetApi="33">
+        tools:targetApi="33"
+        android:usesCleartextTraffic="true">
         <activity
             android:name=".ui.PodcastActivity"
             android:exported="true"

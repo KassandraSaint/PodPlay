@@ -5,7 +5,6 @@ import android.content.Context
 import android.content.Intent
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
-import android.util.Log
 import android.view.Menu
 import android.view.MenuItem
 import android.view.View
@@ -20,6 +19,7 @@ import com.raywenderlich.podplay.databinding.ActivityPodcastBinding
 import com.raywenderlich.podplay.repository.ItunesRepo
 import com.raywenderlich.podplay.repository.PodcastRepo
 import com.raywenderlich.podplay.service.ItunesService
+import com.raywenderlich.podplay.service.RssFeedService
 import com.raywenderlich.podplay.viewmodel.PodcastViewModel
 import com.raywenderlich.podplay.viewmodel.SearchViewModel
 import kotlinx.coroutines.Dispatchers
@@ -45,6 +45,7 @@ class PodcastActivity : AppCompatActivity(), PodcastListAdapter.PodcastListAdapt
         updateControls()
         handleIntent(intent)
         addBackStackListener()
+        createSubscription()
     }
 
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
@@ -77,8 +78,7 @@ class PodcastActivity : AppCompatActivity(), PodcastListAdapter.PodcastListAdapt
 
     private fun handleIntent(intent: Intent) {
         if (Intent.ACTION_SEARCH == intent.action) {
-            val query = intent.getStringExtra(SearchManager.QUERY) ?:
-            return
+            val query = intent.getStringExtra(SearchManager.QUERY) ?: return
             performSearch(query) }
     }
 
@@ -95,7 +95,7 @@ class PodcastActivity : AppCompatActivity(), PodcastListAdapter.PodcastListAdapt
     private fun setupViewModels() {
         val service = ItunesService.instance
         searchViewModel.iTunesRepo = ItunesRepo(service)
-        podcastViewModel.podcastRepo = PodcastRepo()
+        podcastViewModel.podcastRepo = PodcastRepo(RssFeedService.instance)
     }
 
     private fun showProgressBar() {
@@ -110,14 +110,9 @@ class PodcastActivity : AppCompatActivity(), PodcastListAdapter.PodcastListAdapt
     }
 
     override fun onShowDetails(podcastSummaryViewData: SearchViewModel.PodcastSummaryViewData) {
-        val feedUrl = podcastSummaryViewData.feedUrl ?: return
-        showProgressBar()
-        val podcast = podcastViewModel.getPodcast(podcastSummaryViewData)
-        hideProgressBar()
-        if (podcast != null) {
-            showDetailsFragment()
-        } else {
-            showError("Error loading feed $feedUrl")
+        podcastSummaryViewData.feedUrl?.let {
+            showProgressBar()
+            podcastViewModel.getPodcast(podcastSummaryViewData)
         }
     }
 
@@ -131,9 +126,6 @@ class PodcastActivity : AppCompatActivity(), PodcastListAdapter.PodcastListAdapt
         databinding.podcastRecyclerView.adapter = podcastListAdapter
     }
 
-    companion object {
-        private const val TAG_DETAILS_FRAGMENT = "DetailsFragment"
-    }
 
     private fun createPodcastDetailsFragment(): PodcastDetailsFragment {
         var podcastDetailsFragment = supportFragmentManager.findFragmentByTag(TAG_DETAILS_FRAGMENT) as PodcastDetailsFragment?
@@ -145,7 +137,7 @@ class PodcastActivity : AppCompatActivity(), PodcastListAdapter.PodcastListAdapt
 
     private fun showDetailsFragment() {
         val podcastDetailsFragment = createPodcastDetailsFragment()
-        supportFragmentManager.beginTransaction().add(R.id.podcastDetailsContainer, podcastDetailsFragment, TAG_DETAILS_FRAGMENT).addToBackStack("DetailsFragment").commit()
+        supportFragmentManager.beginTransaction().replace(R.id.podcastDetailsContainer, podcastDetailsFragment, TAG_DETAILS_FRAGMENT).addToBackStack("DetailsFragment").commit()
         databinding.podcastRecyclerView.visibility = View.INVISIBLE
         searchMenuItem.isVisible = false
     }
@@ -158,4 +150,17 @@ class PodcastActivity : AppCompatActivity(), PodcastListAdapter.PodcastListAdapt
         }
     }
 
+    private fun createSubscription() {
+        podcastViewModel.podcastLiveData.observe(this, { hideProgressBar()
+            if (it != null) {
+                showDetailsFragment()
+            } else {
+                showError("Error loading feed")
+            }
+        })
+    }
+
+    companion object {
+        private const val TAG_DETAILS_FRAGMENT = "DetailsFragment"
+    }
 }
